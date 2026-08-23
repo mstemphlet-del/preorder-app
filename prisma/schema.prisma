@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  VENDOR
+  CUSTOMER
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING_VERIFICATION
+  PAID
+  REFUNDED
+}
+
+enum FulfillmentStatus {
+  PENDING
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  role          Role      @default(CUSTOMER)
+  
+  accounts      Account[]
+  sessions      Session[]
+  vendor        Vendor?
+  orders        Order[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Vendor {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id])
+  name                String
+  paymentInstructions String
+  products            Product[]
+}
+
+model Product {
+  id          String            @id @default(cuid())
+  vendorId    String
+  vendor      Vendor            @relation(fields: [vendorId], references: [id])
+  title       String
+  description String
+  basePrice   Float
+  imageUrl    String?
+  windows     InventoryWindow[]
+}
+
+model InventoryWindow {
+  id          String      @id @default(cuid())
+  productId   String
+  product     Product     @relation(fields: [productId], references: [id])
+  windowName  String
+  startTime   DateTime
+  endTime     DateTime
+  maxQuantity Int
+  currentSold Int         @default(0)
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id               String          @id @default(cuid())
+  customerId       String
+  customer         User            @relation(fields: [customerId], references: [id])
+  totalAmount      Float
+  paymentStatus    PaymentStatus   @default(UNPAID)
+  paymentMethod    String
+  transactionRef   String?
+  receiptImageUrl  String?
+  createdAt        DateTime        @default(now())
+  items            OrderItem[]
+}
+
+model OrderItem {
+  id                String            @id @default(cuid())
+  orderId           String
+  order             Order             @relation(fields: [orderId], references: [id])
+  windowId          String
+  window            InventoryWindow   @relation(fields: [windowId], references: [id])
+  vendorId          String
+  quantity          Int
+  unitPrice         Float
+  fulfillmentStatus FulfillmentStatus @default(PENDING)
+  trackingNumber    String?
+}
